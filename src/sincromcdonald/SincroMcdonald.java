@@ -10,9 +10,11 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -21,10 +23,14 @@ import java.text.DecimalFormat;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 import javax.swing.JOptionPane;
@@ -43,14 +49,15 @@ public class SincroMcdonald {
         static int port = 21;
         static String user = "";
         static String pass = "";
+        static FileWriter logFile;
     /**
      * @param args the command line arguments
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         iniciar();        
     }
        
-   private static void iniciar(){
+   private static void iniciar() throws IOException{
        //Conexiones
         Connection conDb; Connection conWeb;
         ResultSet rsDb;ResultSet rsCount; Producto producto;
@@ -59,7 +66,7 @@ public class SincroMcdonald {
         conWeb = ConexionWEB.GetConnection();
         DecimalFormat decimal = new DecimalFormat("#.##");
         try {
-
+        guardarLog("--- Se inicio Script --- " + new SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(Calendar.getInstance().getTime()));
         Statement cmdDb = conDb.createStatement();
         Statement cmdWeb = conWeb.createStatement();
         Statement cmdBorrar = conWeb.createStatement();
@@ -113,15 +120,15 @@ public class SincroMcdonald {
         conBorrar.next();
         System.out.println("Se encontrar " + conBorrar.getInt("cantidad") + " productos a limpiar... limpiando");
         cmdBorrar.executeUpdate("DELETE FROM productos where borrar = true");
-        
         }catch (SQLException ex) {
 
             System.out.println("SQLException Iniciar: " + ex.getMessage());
+            guardarLog("SQLException Iniciar: " + ex.getMessage());
 
         }
    }
    
-   private static Subrubro getSubrubro(int id, int id_rubro) throws SQLException
+   private static Subrubro getSubrubro(int id, int id_rubro) throws SQLException, IOException
    {
        Connection conDb; String codigo;
        conDb = ConexionDB.GetConnection();
@@ -140,11 +147,12 @@ public class SincroMcdonald {
        }catch (SQLException ex) {
 
             System.out.println("SQLException getSubRubro: " + ex.getMessage());
+            guardarLog("SQLException getSubRubro: " + ex.getMessage());
        }
        return null;
    }
    
-   private static Rubro getRubro(String id)
+   private static Rubro getRubro(String id) throws IOException
    {
        Connection conDb; 
        conDb = ConexionDB.GetConnection();
@@ -161,11 +169,12 @@ public class SincroMcdonald {
        }catch (SQLException ex) {
 
             System.out.println("SQLException getRubro: " + ex.getMessage());
+            guardarLog("SQLException getRubro: " + ex.getMessage());
        }
        return null;
    }
    
-   private static Marca getMarca(int id){
+   private static Marca getMarca(int id) throws IOException{
       
        Connection conDb; 
        conDb = ConexionDB.GetConnection();
@@ -187,12 +196,13 @@ public class SincroMcdonald {
        }catch (SQLException ex) {
 
             System.out.println("SQLException getMarca: " + ex.getMessage());
+            guardarLog("SQLException getMarca: " + ex.getMessage());
 
        }
        return null;
    }
    
-   private static int insertSubRubro(Subrubro subrubro)
+   private static int insertSubRubro(Subrubro subrubro) throws IOException
    {
        Connection conWeb;
        conWeb = ConexionWEB.GetConnection();
@@ -201,6 +211,9 @@ public class SincroMcdonald {
             ResultSet rs = stWeb.executeQuery("SELECT * FROM subrubros WHERE subrubro LIKE '"+ subrubro.getSubrubro() + "'");
             if (rs.next()){
                 int id = rs.getInt("id");
+                if (!rs.getString("subrubro").equals(subrubro.getSubrubro())){
+                    stWeb.executeUpdate("UPDATE subrubros set subrubro = '" + subrubro.getSubrubro() +"' where id = " + id);
+                }
                 conWeb.close();
                 return id;
             }else{
@@ -215,11 +228,12 @@ public class SincroMcdonald {
             conWeb.close();
         }catch (SQLException ex) {
             System.out.println("SQLException insertSubrubro: " + ex.getMessage());
+            guardarLog("SQLException insertSubrubro: " + ex.getMessage());
        }
        return 0;
    }
    
-   private static int insertRubro(Rubro rubro)
+   private static int insertRubro(Rubro rubro) throws IOException
    {
        Connection conWeb;
        conWeb = ConexionWEB.GetConnection();
@@ -228,6 +242,9 @@ public class SincroMcdonald {
             ResultSet rs = stWeb.executeQuery("SELECT * FROM rubros WHERE rubro LIKE '"+ rubro.getRubro() + "'");
             if (rs.next()){
                 int id = rs.getInt("id");
+                if (!rs.getString("rubro").equals(rubro.getRubro())){
+                    stWeb.executeUpdate("UPDATE rubros set rubro = '" + rubro.getRubro() +"' where id = " + id);
+                }
                 conWeb.close();
                 return id;
             }else{
@@ -242,6 +259,7 @@ public class SincroMcdonald {
             conWeb.close();
         }catch (SQLException ex) {
             System.out.println("SQLException insertSubrubro: " + ex.getMessage());
+            guardarLog("SQLException insertSubrubro: " + ex.getMessage());
        }
        return 0;
    }
@@ -254,9 +272,6 @@ public class SincroMcdonald {
             Statement stWeb = conWeb.createStatement();
             ResultSet rsExiste = stWeb.executeQuery("SELECT * from marcas WHERE nombre LIKE '"+ marca.getNombre()+"'");
             if(!rsExiste.next()){
-                sql= "INSERT INTO marcas (id, nombre, web, logo, estado, slug, orden, shows) VALUES ("+ marca.getId() + ",'" + marca.getNombre() + "','"
-                        + marca.getWeb() + "','"+ marca.getLogo() + "'," + marca.getEstado() + ", '" + marca.getSlug() +
-                        "'," + marca.getOrden() + ",0)";
                 stWeb.executeUpdate("INSERT INTO marcas (id, nombre, web, logo, estado, slug, orden, shows) VALUES ("+ marca.getId() + ",'" + marca.getNombre() + "','"
                         + marca.getWeb() + "','"+ marca.getLogo() + "'," + marca.getEstado() + ", '" + marca.getSlug() +
                         "'," + marca.getOrden() + ",0)");
@@ -268,11 +283,16 @@ public class SincroMcdonald {
                 }
                 conWeb.close();
             }else{
+                int id = marca.getId();
+                if (!rsExiste.getString("nombre").equals(marca.getNombre())){
+                    stWeb.executeUpdate("UPDATE marcas set nombre = '" + marca.getNombre() +"' where id = " + id);
+                }
                 conWeb.close();
                 return marca.getId();
             }
         }catch (SQLException ex) {
-            System.out.println("SQLException insertMarca: " + ex.getMessage() + " - " + sql);
+            System.out.println("SQLException insertMarca: " + ex.getMessage());
+            guardarLog("SQLException insertMarca: " + ex.getMessage());
        }
        return 0;
    }
@@ -319,8 +339,10 @@ public class SincroMcdonald {
             }
         }catch (SQLException ex) {
             System.out.println("SQLException Get Imagenes: " + ex.getMessage());
+            guardarLog("SQLException Get Imagenes: " + ex.getMessage());
         }catch(IOException e){
             System.out.println("Se produjo el error : "+e.toString());
+            guardarLog("Se produjo el error: " + e.getMessage());
         }
         
     }
@@ -386,6 +408,7 @@ public class SincroMcdonald {
             return false;
         }catch (SQLException ex) {
             System.out.println("SQLException Comprobando actualizado: " + ex.getMessage());
+            guardarLog("SQLException Comprobando actualizado: " + ex.getMessage());
         }
         return true;
     }
@@ -415,6 +438,7 @@ public class SincroMcdonald {
                 System.out.println("La imagen se subio correctamente");
             }else{
                 System.out.println("Error al subir la imagen");
+                guardarLog("Error al subir la imagen");
             }
             
             File secondLocalFile = new File(rutaLocalImagenThumbs + codigo + ".jpg");
@@ -430,6 +454,7 @@ public class SincroMcdonald {
                 System.out.println("La imagen thumbs se subio correctamente");
             }else{
                 System.out.println("Error al subir la imagen thumbs");
+                guardarLog("Error al subir la imagen");
             }
             
             
@@ -437,6 +462,7 @@ public class SincroMcdonald {
         } catch (IOException ex) {
             System.out.println("Error: " + ex.getMessage());
             ex.printStackTrace();
+            guardarLog("Error: " + ex.getMessage());
         } finally {
             try {
                 if (ftpClient.isConnected()) {
@@ -445,6 +471,7 @@ public class SincroMcdonald {
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();
+                guardarLog("Error: " + ex.getMessage());
             }
         }
     }
@@ -473,7 +500,20 @@ public class SincroMcdonald {
             }            
         }catch (SQLException ex) {
             System.out.println("SQLException Comprobando actualizado: " + ex.getMessage());
+            guardarLog("SQLException Comprobando actualizado: " + ex.getMessage());
         }
         return retornar;
+    }
+    
+    private static void guardarLog(String mensaje) {
+            try {
+                File filelog = new File("config.txt"); String line = "";
+                String newLine =  line + mensaje;
+                PrintWriter pw = new PrintWriter(new FileWriter(filelog, true));
+                pw.print(newLine + "\n");
+                pw.close();
+            } catch (IOException ex) {
+                System.out.println("Error al registrar el log!! " + ex.getMessage());                
+            }
     }
 }
