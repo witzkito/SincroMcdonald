@@ -119,6 +119,8 @@ public class SincroMcdonald {
         conBorrar.next();
         System.out.println("Se encontrar " + conBorrar.getInt("cantidad") + " productos a limpiar... limpiando");
         cmdBorrar.executeUpdate("DELETE FROM productos where borrar = true");
+        guardarLog("--- Se finalizo Script --- " + new SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(Calendar.getInstance().getTime()));
+        subirLog();
         }catch (SQLException ex) {
 
             System.out.println("SQLException Iniciar: " + ex.getMessage());
@@ -514,5 +516,46 @@ public class SincroMcdonald {
             } catch (IOException ex) {
                 System.out.println("Error al registrar el log!! " + ex.getMessage());                
             }
+    }
+    
+    private static void subirLog()
+    {
+        FTPClient ftpClient = new FTPClient();
+        try {
+ 
+            ftpClient.connect(server, port);
+            ftpClient.login(user, pass);
+            ftpClient.enterLocalPassiveMode();
+ 
+            ftpClient.setFileType(FTP.BINARY_FILE_TYPE);
+ 
+            File file = new File("config.txt");
+ 
+            InputStream inputStream = new FileInputStream(file);
+            ftpClient.changeWorkingDirectory("/public_html/");
+ 
+            boolean done = ftpClient.storeFile("logSincro.txt", inputStream);
+            inputStream.close();
+            if (done) {
+                System.out.println("El Archivo se subio correctamente");
+            }else{
+                System.out.println("Error al subir el archivo");
+                guardarLog("Error al subir el lig");
+            }
+        } catch (IOException ex) {
+            System.out.println("Error al subir log: " + ex.getMessage());
+            ex.printStackTrace();
+            guardarLog("Error al subir log: " + ex.getMessage());
+        } finally {
+            try {
+                if (ftpClient.isConnected()) {
+                    ftpClient.logout();
+                    ftpClient.disconnect();
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+                guardarLog("Error al subir log: " + ex.getMessage());
+            }
+        }
     }
 }
