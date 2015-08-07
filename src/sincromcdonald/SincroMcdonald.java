@@ -33,7 +33,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
-import javax.swing.JOptionPane;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
 
@@ -88,7 +87,7 @@ public class SincroMcdonald {
                 if(producto.getDescripcion() == null){
                     producto.setDescripcion(" ");
                 }
-                producto.setNombre(rsDb.getString("ARTICULO_CORTO"));
+                producto.setNombre(rsDb.getString("ARTICULO_LARGO"));
                 producto.setPrecio(rsDb.getString("PU_CON_IVA_1"));
                 producto.setSubrubro(getSubrubro(rsDb.getInt("CSUBRUBRO"), rsDb.getInt("CRUBRO")));
                 producto.setMarca(getMarca(rsDb.getInt("CMARCA")));
@@ -429,7 +428,7 @@ public class SincroMcdonald {
  
             String firstRemoteFile = codigo + ".jpg";
             InputStream inputStream = new FileInputStream(firstLocalFile);
-            ftpClient.changeWorkingDirectory("/uploads/productos/");
+            ftpClient.changeWorkingDirectory("/public_html/uploads/productos/");
  
             System.out.println("Comenzando a subir imagen");
             boolean done = ftpClient.storeFile(firstRemoteFile, inputStream);
@@ -445,7 +444,7 @@ public class SincroMcdonald {
  
             String secondRemoteFile = codigo + ".jpg";
             InputStream inputSecondStream = new FileInputStream(secondLocalFile);
-            ftpClient.changeWorkingDirectory("/uploads/productos/thumbs/");
+            ftpClient.changeWorkingDirectory("/public_html/uploads/productos/thumbs/");
  
             System.out.println("Comenzando a subir imagen thumbs");
             boolean doneSecond = ftpClient.storeFile(secondRemoteFile, inputSecondStream);
@@ -505,7 +504,7 @@ public class SincroMcdonald {
         return retornar;
     }
     
-    private static void guardarLog(String mensaje) {
+    public static void guardarLog(String mensaje) {
             try {
                 File filelog = new File("config.txt"); String line = "";
                 String newLine =  line + mensaje;

@@ -3,11 +3,10 @@ package sincromcdonald;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import javax.swing.JOptionPane;
 
 /**
  *
- * @author Kevin Arnold
+ * @author Witzkito
  */
 public class ConexionDB {
      
@@ -18,24 +17,27 @@ public class ConexionDB {
         try
         {
             Class.forName("com.mysql.jdbc.Driver");
-            String servidor = "jdbc:mysql://192.168.0.111/mcdonald";
+            String servidor = "jdbc:mysql://";
             String usuarioDB="";
-            String passwordDB="";            
+            String passwordDB="";
             conexion= DriverManager.getConnection(servidor,usuarioDB,passwordDB);
         }
         catch(ClassNotFoundException ex)
         {
-            JOptionPane.showMessageDialog(null, ex, "Error1 en la Conexión con la BD "+ex.getMessage(), JOptionPane.ERROR_MESSAGE);
+            System.out.println("Error1 en la Conexión con la BD "+ ex.getMessage());
+            SincroMcdonald.guardarLog("Error1 en la Conexión con la BD "+ ex.getMessage());
             conexion=null;
         }
         catch(SQLException ex)
         {
-            JOptionPane.showMessageDialog(null, ex, "Error2 en la Conexión con la BD "+ex.getMessage(), JOptionPane.ERROR_MESSAGE);
+            System.out.println("Error2 en la Conexión con la BD "+ex.getMessage());
+            SincroMcdonald.guardarLog("Error2 en la Conexión con la BD "+ex.getMessage());
             conexion=null;
         }
         catch(Exception ex)
         {
-            JOptionPane.showMessageDialog(null, ex, "Error3 en la Conexión con la BD "+ex.getMessage(), JOptionPane.ERROR_MESSAGE);
+            System.out.println("Error3 en la Conexión con la BD "+ ex.getMessage());
+            SincroMcdonald.guardarLog("Error3 en la Conexión con la BD "+ ex.getMessage());
             conexion=null;
         }
         finally
