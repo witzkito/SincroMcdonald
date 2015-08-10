@@ -46,8 +46,8 @@ public class SincroMcdonald {
         static String rutaLocalImagenThumbs = "uploads/productos/thumbs/";
         static String server = "dmcdonald.com.ar";
         static int port = 21;
-        static String user = "";
-        static String pass = "";
+        static String user = "mcdonald";
+        static String pass = "sWuuHPswac8E";
         static FileWriter logFile;
     /**
      * @param args the command line arguments
@@ -209,7 +209,9 @@ public class SincroMcdonald {
        conWeb = ConexionWEB.GetConnection();
        try{
             Statement stWeb = conWeb.createStatement();
-            ResultSet rs = stWeb.executeQuery("SELECT * FROM subrubros WHERE subrubro LIKE '"+ subrubro.getSubrubro() + "'");
+            ResultSet rs = stWeb.executeQuery("SELECT * FROM subrubros"
+                    + " inner join rubros on subrubros.rubro_id = rubros.id"
+                    + " WHERE subrubro LIKE '"+ subrubro.getSubrubro() + "' and rubros.rubro LIKE '"+ subrubro.getRubro().getRubro() + "'" );
             if (rs.next()){
                 int id = rs.getInt("id");
                 if (!rs.getString("subrubro").equals(subrubro.getSubrubro())){
@@ -219,7 +221,9 @@ public class SincroMcdonald {
                 return id;
             }else{
                 stWeb.executeUpdate("INSERT INTO subrubros (rubro_id, subrubro) VALUES ('" + insertRubro(subrubro.getRubro()) + "', '" + subrubro.getSubrubro() + "')");
-                ResultSet rs2 = stWeb.executeQuery("SELECT * FROM subrubros WHERE subrubro LIKE '"+ subrubro.getSubrubro() + "'");
+                ResultSet rs2 = stWeb.executeQuery("SELECT * FROM subrubros"
+                    + " inner join rubros on subrubros.rubro_id = rubros.id"
+                    + " WHERE subrubro LIKE '"+ subrubro.getSubrubro() + "' and rubros.rubro LIKE '"+ subrubro.getRubro().getRubro() + "'" );
                 if (rs2.next()){
                     int id = rs2.getInt("id");
                     conWeb.close();
