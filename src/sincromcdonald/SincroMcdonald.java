@@ -49,10 +49,13 @@ public class SincroMcdonald {
         static String user = "mcdonald";
         static String pass = "sWuuHPswac8E";
         static FileWriter logFile;
+        static Map localidades = new HashMap();
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) throws IOException {
+        localidades = cargarLocalidades();
+        cargarClientes();
         iniciar();        
     }
        
@@ -104,8 +107,8 @@ public class SincroMcdonald {
                 if(rsStock.next()){
                     producto.setStock(rsStock.getDouble("CANTIDAD"));
                 }
-                cargarImagen(producto.getCodigo());
-                cmdWeb.executeUpdate("DELETE FROM productos WHERE codigo = " + producto.getCodigo());
+                //cargarImagen(producto.getCodigo());
+                cmdWeb.executeUpdate("DELETE FROM productos WHERE codigo LIKE '" + producto.getCodigo() + "'");
                 cmdWeb.executeUpdate("INSERT INTO productos (codigo, nombre, descripcion, precio, stock, subrubro_id, modificacion, oferta, stock_minimo, marca_id) VALUES ('"+ producto.getCodigo() +"','"+
                         producto.getNombre() + "','" + producto.getDescripcion()+ "','" + producto.getPrecio() +"', " + producto.getStock() +
                         ", " + insertSubRubro(producto.getSubrubro()) + ", '" + new SimpleDateFormat("yyyy/MM/dd H:m:s").format(fechaUpdate) + "', " + producto.isOferta() + "," + producto.getStockMinimo()+ 
@@ -561,5 +564,167 @@ public class SincroMcdonald {
                 guardarLog("Error al subir log: " + ex.getMessage());
             }
         }
+    }
+    
+    private static void cargarClientes()
+    {
+        System.out.println("Cargando Clientes");
+        Map clientes = cargarMapClientes();
+        System.out.println(clientes.size() + " Clientes Encontrados");
+        
+        Connection conDB = ConexionDB.GetConnection();
+        ResultSet rs;
+        try {
+            rs = conDB.createStatement().executeQuery("SELECT * FROM clientes WHERE vigente = 1");
+
+            while (rs.next())
+            {
+                if (clientes.get(rs.getString("CCLIENTE")) == null)
+                {
+                    Clientes cli = new Clientes();
+                    cli.setCodigo(rs.getString("CCLIENTE"));
+                    cli.setDireccion(rs.getString("DIRECCION"));
+                    cli.setDoc(rs.getString("NIDENTIFICACION"));
+                    cli.setTipoDoc(rs.getString("IDENTIFICACION"));
+                    cli.setEmail(null);
+                    cli.setNombre(rs.getString("CLIENTE"));
+                    cli.setTelefono(rs.getString("TELEFONO"));
+                    cli.setLocalidad(getLocalidad(rs.getInt("CLOCALIDAD")));
+                    if( !insertarCliente(cli)){
+                        System.out.println("Se inserto cliente -" + cli.getNombre());
+                    }else{
+                        System.out.println("Error al insertar Cliente");
+                    }
+                }
+            }
+            conDB.close();
+        } catch (SQLException ex) {
+                Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+       }
+    }
+    
+    private static Map cargarMapClientes(){
+        Map retornar = new HashMap();
+        Connection conWEB = ConexionWEB.GetConnection();
+        ResultSet rs;
+        try {
+            rs = conWEB.createStatement().executeQuery("SELECT * from clientes");
+            while (rs.next())
+            {
+                Clientes cli = new Clientes();
+                cli.setId(rs.getInt("id"));
+                cli.setCodigo(rs.getString("codigo"));
+                cli.setDireccion(rs.getString("direccion"));
+                cli.setDoc(rs.getString("doc"));
+                cli.setTipoDoc(rs.getString("tipoDoc"));
+                cli.setEmail(rs.getString("email"));
+                cli.setNombre(rs.getString("nombre"));
+                cli.setTelefono(rs.getString("telefono"));
+                cli.setLocalidad(getLocalidad(rs.getInt("localidad_id")));
+                retornar.put(cli.getCodigo(), cli);
+                
+            }
+            conWEB.close();
+            return retornar;
+        } catch (SQLException ex) {
+            Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return null;
+    }
+    
+    private static boolean insertarCliente(Clientes cli)
+    {
+        Connection conWEB = ConexionWEB.GetConnection();
+        String sql = "INSERT INTO clientes ";
+        sql = sql + "(email, nombre, doc, direccion, telefono, codigo, tipoDoc, localidad_id) ";
+        sql = sql + "VALUES (";
+        sql = sql + "'" + cli.getEmail() +"',";
+        sql = sql + "'" + cli.getNombre() +"',";
+        sql = sql + "'" + cli.getDoc() +"',";
+        sql = sql + "'" + cli.getDireccion() +"',";
+        sql = sql + "'" + cli.getTelefono() +"',";
+        sql = sql + "'" + cli.getCodigo() +"',";
+        sql = sql + "'" + cli.getTipoDoc() +"',";
+        sql = sql + cli.getLocalidad().getId();
+        sql = sql + ")";
+        try {
+            boolean bool = conWEB.createStatement().execute(sql);
+            conWEB.close();
+            return bool;            
+        } catch (SQLException ex) {
+            Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return false;
+    }
+    
+    private static Localidad getLocalidad(int clocalidad)
+    {
+       if ((Localidad)localidades.get(clocalidad) != null)
+       {
+           return (Localidad)localidades.get(clocalidad);
+       }else{
+           Connection conDB = ConexionDB.GetConnection();
+           ResultSet rs;
+           try {
+                rs = conDB.createStatement().executeQuery("SELECT * from localidad WHERE clocalidad LIKE " + clocalidad);
+                rs.next();
+                Localidad loc = new Localidad();
+                loc.setId(rs.getInt("CLOCALIDAD"));
+                loc.setNombre(rs.getString("LOCALIDAD"));
+                loc.setCpp(rs.getString("CP"));
+                loc.setProvincia(rs.getInt("CPROVINCIA"));
+                conDB.close();
+                return insertarLocalidad(loc);
+           } catch (SQLException ex) {
+               Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+           }
+       }
+       return null;
+    }
+    
+    private static Map cargarLocalidades(){
+        Map retornar = new HashMap();
+        Connection conWEB = ConexionWEB.GetConnection();
+        ResultSet rs;
+        try {
+            rs = conWEB.createStatement().executeQuery("SELECT * from localidades");
+            while (rs.next())
+            {
+                Localidad loc = new Localidad();
+                loc.setId(rs.getInt("id"));
+                loc.setCpp(rs.getString("ccpp"));
+                loc.setNombre(rs.getString("localidad"));
+                loc.setProvincia(rs.getInt("provincia_id"));
+                retornar.put(loc.getId(), loc);
+                
+            }
+            conWEB.close();
+            return retornar;
+        } catch (SQLException ex) {
+            Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return null;
+    }
+    
+    private static Localidad insertarLocalidad(Localidad loc)
+    {
+        Connection conWEB = ConexionWEB.GetConnection();
+        String sql = "INSERT INTO localidades ";
+        sql = sql + "(id, localidad,ccpp, provincia_id) ";
+        sql = sql + "VALUES (";
+        sql = sql + "'" + loc.getId() +"',";
+        sql = sql + "'" + loc.getNombre() +"',";
+        sql = sql + "'" + loc.getCpp() +"', ";
+        sql = sql + loc.getProvincia() ;
+        sql = sql + " )";
+        try {
+            conWEB.createStatement().execute(sql);
+            localidades.put(loc.getId(), loc);
+            conWEB.close();
+            return loc;
+        } catch (SQLException ex) {
+            Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return null;
     }
 }
