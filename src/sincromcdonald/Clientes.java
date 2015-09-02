@@ -3,6 +3,7 @@
  */
 package sincromcdonald;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,6 +22,7 @@ public class Clientes {
     private String telefono;
     private String email;
     private Localidad localidad;
+    private Date modificacion; 
 
     public Clientes() {
     }
@@ -106,6 +108,14 @@ public class Clientes {
 
     public void setLocalidad(Localidad localidad) {
         this.localidad = localidad;
+    }
+
+    public Date getModificacion() {
+        return modificacion;
+    }
+
+    public void setModificacion(Date modificacion) {
+        this.modificacion = modificacion;
     }
 
     

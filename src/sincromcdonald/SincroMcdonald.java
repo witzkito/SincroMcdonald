@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 import org.apache.commons.net.ftp.FTP;
@@ -50,6 +51,8 @@ public class SincroMcdonald {
         static String pass = "sWuuHPswac8E";
         static FileWriter logFile;
         static Map localidades = new HashMap();
+        private static final String PATTERN_EMAIL = "^[_A-Za-z0-9-\\+]+(\\.[_A-Za-z0-9-]+)*@"
+            + "[A-Za-z0-9-]+(\\.[A-Za-z0-9]+)*(\\.[A-Za-z]{2,})$";
     /**
      * @param args the command line arguments
      */
@@ -579,28 +582,61 @@ public class SincroMcdonald {
 
             while (rs.next())
             {
-                if (clientes.get(rs.getString("CCLIENTE")) == null)
+                Clientes cliente = (Clientes)clientes.get(rs.getString("CCLIENTE"));
+                if (cliente == null)
                 {
-                    Clientes cli = new Clientes();
-                    cli.setCodigo(rs.getString("CCLIENTE"));
-                    cli.setDireccion(rs.getString("DIRECCION"));
-                    cli.setDoc(rs.getString("NIDENTIFICACION"));
-                    cli.setTipoDoc(rs.getString("IDENTIFICACION"));
-                    cli.setEmail(null);
-                    cli.setNombre(rs.getString("CLIENTE"));
-                    cli.setTelefono(rs.getString("TELEFONO"));
-                    cli.setLocalidad(getLocalidad(rs.getInt("CLOCALIDAD")));
-                    if( !insertarCliente(cli)){
-                        System.out.println("Se inserto cliente -" + cli.getNombre());
-                    }else{
-                        System.out.println("Error al insertar Cliente");
+                    insertarCliente(rs);
+                }else{
+                    if (rs.getDate("FMODI") != null){
+                        if(cliente.getModificacion().compareTo(rs.getDate("FMODI")) < 0 )
+                        {
+                            Connection conWEB = ConexionWEB.GetConnection();
+                            Statement st = conWEB.createStatement();
+                            st.execute("DELETE FROM clientes WHERE codigo = " + rs.getDate("FMODI"));
+                            insertarCliente(rs);
+                        }
                     }
+                    
                 }
             }
             conDB.close();
         } catch (SQLException ex) {
-                Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+                guardarLog("Error Cargando clientes: " + ex.getMessage());
        }
+    }
+    
+    private static void insertarCliente(ResultSet rs)
+    {
+        try {
+            Clientes cli = new Clientes();
+            cli.setCodigo(rs.getString("CCLIENTE"));            
+            cli.setDireccion(rs.getString("DIRECCION"));
+            cli.setDoc(rs.getString("NIDENTIFICACION"));
+            cli.setTipoDoc(rs.getString("IDENTIFICACION"));
+            if (rs.getString("OBSERVACIONES") != null){
+                Pattern pattern = Pattern.compile(PATTERN_EMAIL);
+                Matcher matcher = pattern.matcher(rs.getString("OBSERVACIONES"));
+                if (matcher.matches()){
+                    cli.setEmail(rs.getString("OBSERVACIONES"));
+                }else{
+                    cli.setEmail("");
+                }
+            }else{
+                cli.setEmail("");
+            }
+            cli.setNombre(rs.getString("CLIENTE"));
+            cli.setTelefono(rs.getString("TELEFONO"));
+            cli.setLocalidad(getLocalidad(rs.getInt("CLOCALIDAD")));
+            cli.setModificacion(new Date());
+            if( !insertarCliente(cli)){
+                System.out.println("Se inserto cliente -" + cli.getNombre());
+            }else{
+                System.out.println("Error al insertar Cliente");
+                guardarLog("Error al insertar Cliente");
+            }
+        } catch (SQLException ex) {
+                guardarLog("Error al insertar el cliente: " + ex.getMessage());
+        }
     }
     
     private static Map cargarMapClientes(){
@@ -621,13 +657,14 @@ public class SincroMcdonald {
                 cli.setNombre(rs.getString("nombre"));
                 cli.setTelefono(rs.getString("telefono"));
                 cli.setLocalidad(getLocalidad(rs.getInt("localidad_id")));
+                cli.setModificacion(rs.getDate("modificacion"));
                 retornar.put(cli.getCodigo(), cli);
                 
             }
             conWEB.close();
             return retornar;
         } catch (SQLException ex) {
-            Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+            guardarLog("Error cargando mapas de clientes: " + ex.getMessage());
         }
         return null;
     }
@@ -636,7 +673,7 @@ public class SincroMcdonald {
     {
         Connection conWEB = ConexionWEB.GetConnection();
         String sql = "INSERT INTO clientes ";
-        sql = sql + "(email, nombre, doc, direccion, telefono, codigo, tipoDoc, localidad_id) ";
+        sql = sql + "(email, nombre, doc, direccion, telefono, codigo, tipoDoc, localidad_id, modificacion) ";
         sql = sql + "VALUES (";
         sql = sql + "'" + cli.getEmail() +"',";
         sql = sql + "'" + cli.getNombre() +"',";
@@ -645,14 +682,15 @@ public class SincroMcdonald {
         sql = sql + "'" + cli.getTelefono() +"',";
         sql = sql + "'" + cli.getCodigo() +"',";
         sql = sql + "'" + cli.getTipoDoc() +"',";
-        sql = sql + cli.getLocalidad().getId();
+        sql = sql + cli.getLocalidad().getId() + ",'";
+        sql = sql + new SimpleDateFormat("yyyy/MM/dd H:m:s").format(cli.getModificacion()) + "'";
         sql = sql + ")";
         try {
             boolean bool = conWEB.createStatement().execute(sql);
             conWEB.close();
             return bool;            
         } catch (SQLException ex) {
-            Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+            guardarLog("Error insertando clientes en la bd: " + ex.getMessage());
         }
         return false;
     }
@@ -676,7 +714,7 @@ public class SincroMcdonald {
                 conDB.close();
                 return insertarLocalidad(loc);
            } catch (SQLException ex) {
-               Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+               guardarLog("Error trayendo localidad: " + ex.getMessage());
            }
        }
        return null;
@@ -701,7 +739,7 @@ public class SincroMcdonald {
             conWEB.close();
             return retornar;
         } catch (SQLException ex) {
-            Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+            guardarLog("Error Cargando Localidades en el mapa: " + ex.getMessage());
         }
         return null;
     }
@@ -723,7 +761,7 @@ public class SincroMcdonald {
             conWEB.close();
             return loc;
         } catch (SQLException ex) {
-            Logger.getLogger(SincroMcdonald.class.getName()).log(Level.SEVERE, null, ex);
+            guardarLog("Error Insertando localidad: " + ex.getMessage());
         }
         return null;
     }
