@@ -110,7 +110,7 @@ public class SincroMcdonald {
                 if(rsStock.next()){
                     producto.setStock(rsStock.getDouble("CANTIDAD"));
                 }
-                //cargarImagen(producto.getCodigo());
+                cargarImagen(producto.getCodigo());
                 cmdWeb.executeUpdate("DELETE FROM productos WHERE codigo LIKE '" + producto.getCodigo() + "'");
                 cmdWeb.executeUpdate("INSERT INTO productos (codigo, nombre, descripcion, precio, stock, subrubro_id, modificacion, oferta, stock_minimo, marca_id) VALUES ('"+ producto.getCodigo() +"','"+
                         producto.getNombre() + "','" + producto.getDescripcion()+ "','" + producto.getPrecio() +"', " + producto.getStock() +
