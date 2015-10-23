@@ -26,6 +26,7 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Scanner;
@@ -33,9 +34,14 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.FileImageOutputStream;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
+import org.apache.commons.net.ftp.FTPFile;
 
 
 /**
@@ -50,6 +56,8 @@ public class SincroMcdonald {
         static String user = "mcdonald";
         static String pass = "sWuuHPswac8E";
         static FileWriter logFile;
+        static FTPFile[] filesFtp;
+        static FTPFile[] filesFtpThumbs;
         static Map localidades = new HashMap();
         private static final String PATTERN_EMAIL = "^[_A-Za-z0-9-\\+]+(\\.[_A-Za-z0-9-]+)*@"
             + "[A-Za-z0-9-]+(\\.[A-Za-z0-9]+)*(\\.[A-Za-z]{2,})$";
@@ -80,6 +88,9 @@ public class SincroMcdonald {
         rsCount.next();
         float cantidad = new Float(100).floatValue() / new Float(rsCount.getInt("cantidad")).floatValue();
         rsDb = cmdDb.executeQuery("SELECT * FROM articulos WHERE vigente = true");
+        
+        getFilesFtp();
+        
         System.out.println("Llenando la memoria de productos");
         Map productos = llenarProductos();
         while (rsDb.next()){
@@ -119,7 +130,16 @@ public class SincroMcdonald {
                
                 cmdDbStock.close();
             }
-            cmdBorrar.executeUpdate("UPDATE productos set borrar = false where codigo = " + rsDb.getInt("CARTICULO"));            
+            cmdBorrar.executeUpdate("UPDATE productos set borrar = false where codigo = " + rsDb.getInt("CARTICULO"));
+            
+            //Controla si existe la foto, en caso contrario la sube
+            if (!isExistImagen(rsDb)){
+                cargarImagen(rsDb.getInt("CARTICULO"));
+            }
+            if (!isExistImagenThumbs(rsDb)){
+                cargarImagen(rsDb.getInt("CARTICULO"));
+            }
+            
         }
         ResultSet conBorrar = cmdBorrar.executeQuery("SELECT count(id) as cantidad from productos WHERE borrar = true");
         conBorrar.next();
@@ -132,6 +152,68 @@ public class SincroMcdonald {
             System.out.println("SQLException Iniciar: " + ex.getMessage());
             guardarLog("SQLException Iniciar: " + ex.getMessage());
 
+        }
+   }
+   
+   private static void getFilesFtp()
+   {
+        try {
+            FTPClient ftpClient = new FTPClient();
+            ftpClient.connect(server, port);
+            ftpClient.login(user, pass);
+            ftpClient.changeWorkingDirectory("/public_html/uploads/productos/");
+            
+            filesFtp = ftpClient.listFiles();
+            
+            ftpClient.changeWorkingDirectory("/public_html/uploads/productos/thumbs/");
+            filesFtpThumbs = ftpClient.listFiles();
+        } catch (IOException ex) {
+            System.out.println("Error Trayendo listas de archivos FTP: " + ex.getMessage());
+            guardarLog("Error: " + ex.getMessage());
+        }
+   }
+   
+   /**
+    * Recorre la lista de archivos para ver si existe ya o no la imagen
+    * @param rs
+    * @return 
+    */
+   private static boolean isExistImagen(ResultSet rs)
+   {
+            try {
+                String codigoArt = String.valueOf(rs.getInt("CARTICULO"));
+                for (FTPFile file : filesFtp) {
+                    if (file.getName().equals(codigoArt + ".jpg")){
+                        return true;
+                    }
+                }
+                return false;
+            } catch (SQLException ex) {
+               System.out.println("Error si existe imagen: " + ex.getMessage());
+            guardarLog("Error si existe imagen: " + ex.getMessage());
+            return true;
+            }
+   }
+   
+   /**
+    * Recorre la lista de archivos thumbs para ver si existe ya o no la imagen
+    * @param rs
+    * @return 
+    */
+   private static boolean isExistImagenThumbs(ResultSet rs)
+   {
+        try {
+            String codigoArt = String.valueOf(rs.getInt("CARTICULO"));
+            for (FTPFile file : filesFtpThumbs) {
+                if (file.getName().equals(codigoArt + ".jpg")){
+                    return true;
+                }
+            }
+            return false;
+        } catch (SQLException ex) {
+            System.out.println("Error si existe thumbs: " + ex.getMessage());
+            guardarLog("Error si existe thumbs: " + ex.getMessage());
+            return true;
         }
    }
    
@@ -341,11 +423,25 @@ public class SincroMcdonald {
                conDb.close();
                
                //se carga la imagen en tumbs
+               
+               File file = new File(rutaLocalImagenThumbs + codigo + ".jpg");
+               FileImageOutputStream output = new FileImageOutputStream(file);
+               
+               Iterator iter = ImageIO.getImageWritersByFormatName("jpeg");
+               ImageWriter writer = (ImageWriter)iter.next();
+               ImageWriteParam iwp = writer.getDefaultWriteParam();
+               iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+               iwp.setCompressionQuality(0.8F);
+               
                 BufferedImage originalImage = ImageIO.read(f);
                 int type = originalImage.getType() == 0? BufferedImage.TYPE_INT_ARGB : originalImage.getType();
  
 		BufferedImage resizeImageJpg = resizeImage(originalImage, type);
-		ImageIO.write(resizeImageJpg, "jpg", new File(rutaLocalImagenThumbs + codigo + ".jpg"));
+                writer.setOutput(output);
+                IIOImage image = new IIOImage(resizeImageJpg, null, null);
+                writer.write(null, image, iwp);
+                writer.dispose();
+		//ImageIO.write(resizeImageJpg, "jpg", new File(rutaLocalImagenThumbs + codigo + ".jpg"));
                 subirFTP(codigo);
             }
         }catch (SQLException ex) {
@@ -362,9 +458,13 @@ public class SincroMcdonald {
     
     private static BufferedImage resizeImage(BufferedImage originalImage, int type){
         int total = (500*100)/originalImage.getWidth();
-        int width = (originalImage.getWidth()*total)/100;
-        int height =  (originalImage.getHeight()*total)/100;
-        
+        float ratio = (430*100)/originalImage.getWidth();
+        int width = new Float(originalImage.getWidth() * (ratio/100)).intValue();
+        int height =  new Float(originalImage.getHeight() * (ratio/100)).intValue();
+        System.out.println(ratio);
+        System.out.println(width);
+        System.out.println(height);
+        System.out.println(type);
 	BufferedImage resizedImage = new BufferedImage(width, height, type);
 	Graphics2D g = resizedImage.createGraphics();
        
